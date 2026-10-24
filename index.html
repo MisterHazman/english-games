@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>English Team Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎲</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+.hero{ text-align:center; }
+.hero h1{ font-family:var(--font-display); font-weight:800; font-size:3.2rem; margin:0; line-height:1.1; }
+.hero p{ color:var(--chalk-dim); font-size:1.2rem; margin:0.4rem 0 0; }
+.games{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(17rem, 1fr));
+  gap:clamp(12px, 2vw, 24px);
+}
+.game{
+  display:flex; flex-direction:column; align-items:center; gap:0.3rem;
+  padding:1.4rem 1rem;
+  border-radius:1.1rem;
+  border:3px solid var(--c);
+  background:rgba(255,255,255,0.05);
+  color:var(--chalk);
+  text-decoration:none;
+  text-align:center;
+  transition:transform 0.15s ease, background 0.15s ease;
+}
+.game:hover, .game:focus-visible{ transform:translateY(-4px); background:rgba(255,255,255,0.1); outline:none; }
+.game .icon{ font-size:4rem; line-height:1.1; }
+.game .name{ font-family:var(--font-display); font-weight:800; font-size:2rem; color:var(--c); }
+.game .what{ color:var(--chalk-dim); font-size:1rem; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hero">
+    <h1><span style="color:var(--gold)">English</span> Team Games</h1>
+    <p>Year 4 · Year 5 · Year 6 — choose a game</p>
+  </div>
+
+  <nav class="games">
+    <a class="game" href="splat.html" style="--c:#FF5A5F">
+      <span class="icon">🎨</span><span class="name">SPLAT!</span>
+      <span class="what">Answer right to splat another team. Last team standing wins.</span>
+    </a>
+    <a class="game" href="tug-of-war.html" style="--c:#2EC4B6">
+      <span class="icon">💪</span><span class="name">Tug of War</span>
+      <span class="what">Spelling and vocabulary. Pull the rope to your side!</span>
+    </a>
+    <a class="game" href="mystery-picture.html" style="--c:#FFC145">
+      <span class="icon">🖼️</span><span class="name">Mystery Picture</span>
+      <span class="what">Open tiles and guess the hidden word. Fewer tiles = more points.</span>
+    </a>
+    <a class="game" href="sentence-scramble.html" style="--c:#A78BFA">
+      <span class="icon">🔀</span><span class="name">Sentence Scramble</span>
+      <span class="what">Put the mixed-up words in the correct order.</span>
+    </a>
+    <a class="game" href="word-bomb.html" style="--c:#FF8A3D">
+      <span class="icon">💣</span><span class="name">Word Bomb</span>
+      <span class="what">Answer before the bomb explodes — or lose a life!</span>
+    </a>
+  </nav>
+
+  <div class="footer-note">KSSR · CEFR A1–A2 · Each game has a setup screen: choose the year, teams and questions. Settings are saved on this computer.</div>
+</div>
+</body>
+</html>

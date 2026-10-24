@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentence Scramble — English Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔀</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+.words{ display:flex; flex-wrap:wrap; justify-content:center; gap:0.7rem; min-height:4rem; }
+.word-tile{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:2.2rem;
+  line-height:1.2;
+  padding:0.3rem 1rem;
+  border-radius:0.7rem;
+  background:var(--chalk);
+  color:var(--board);
+  box-shadow:0 5px 0 rgba(0,0,0,0.35);
+  animation:drop 0.4s cubic-bezier(.2,1.4,.4,1) both;
+}
+.word-tile:nth-child(3n+2){ transform:rotate(-2deg); }
+.word-tile:nth-child(3n){ transform:rotate(2deg); }
+@keyframes drop{ from{ opacity:0; translate:0 -1.5rem; } to{ opacity:1; translate:0 0; } }
+#scores{ margin-top:clamp(12px, 2vw, 24px); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+
+  <div class="setup" id="setup"></div>
+
+  <main id="game" class="hidden">
+    <div class="stage">
+      <div class="stage-label">Put the words in the correct order</div>
+      <div class="words" id="words"></div>
+      <div class="answer-text" id="answerText"></div>
+      <div class="controls">
+        <button class="btn-ghost btn-big" id="prevBtn">← Previous</button>
+        <button class="btn-ghost btn-big" id="mixBtn">🔀 Mix again</button>
+        <button class="btn-ghost btn-big" id="answerBtn">Show Answer</button>
+        <button class="btn-primary btn-big" id="nextBtn">Next Sentence →</button>
+      </div>
+    </div>
+
+    <div id="scores"></div>
+  </main>
+
+  <div class="footer-note">The first team to say the whole sentence correctly gets 1 point.</div>
+</div>
+
+<script src="common.js"></script>
+<script>
+/* ============================================================
+   BUILT-IN SENTENCES — grammar and sentence structure
+   (Year 4, 5, 6 — KSSR / CEFR A1–A2). The game mixes the
+   words up by itself, so just type the correct sentence.
+   ============================================================ */
+const BANKS = {
+  4: [
+    { sentence: "I like to eat bananas." },
+    { sentence: "My cat is sleeping under the table." },
+    { sentence: "She can swim very well." },
+    { sentence: "We go to school by bus." },
+    { sentence: "There are five apples in the basket." },
+    { sentence: "My brother plays football every evening." },
+    { sentence: "The elephant has a long trunk." },
+    { sentence: "I brush my teeth every morning." },
+    { sentence: "Can you ride a bicycle?" },
+    { sentence: "Ali is reading a book in the library." },
+    { sentence: "The sky is blue today." },
+    { sentence: "My mother is a teacher." },
+    { sentence: "They are playing in the garden." },
+    { sentence: "I have two sisters and one brother." },
+    { sentence: "What is your favourite colour?" },
+    { sentence: "The monkey is eating a banana." },
+    { sentence: "We have English on Monday." },
+    { sentence: "My school bag is red." },
+    { sentence: "He wakes up at six o'clock." },
+    { sentence: "Where is my pencil?" },
+    { sentence: "The birds are singing in the tree." },
+    { sentence: "Siti likes drawing pictures." }
+  ],
+  5: [
+    { sentence: "I went to the beach last Sunday." },
+    { sentence: "We played badminton after school." },
+    { sentence: "It was very hot yesterday." },
+    { sentence: "My father is taller than my mother." },
+    { sentence: "The cheetah is the fastest animal." },
+    { sentence: "How many books do you have?" },
+    { sentence: "She ate nasi lemak for breakfast." },
+    { sentence: "You should drink a lot of water." },
+    { sentence: "They were at the zoo on Saturday." },
+    { sentence: "Did you watch the football match?" },
+    { sentence: "My birthday is in December." },
+    { sentence: "There is some milk in the fridge." },
+    { sentence: "The train is faster than the bus." },
+    { sentence: "I am going to visit my grandmother." },
+    { sentence: "We must wear a helmet on a bicycle." },
+    { sentence: "Ahmad helped his mother in the kitchen." },
+    { sentence: "What time does the shop open?" },
+    { sentence: "The weather is cold and rainy today." },
+    { sentence: "My sister can play the piano." },
+    { sentence: "We saw a big turtle in the sea." },
+    { sentence: "I do my homework every evening." },
+    { sentence: "Is there a library in your school?" }
+  ],
+  6: [
+    { sentence: "I was reading a book when the lights went out." },
+    { sentence: "We should save water every day." },
+    { sentence: "Mount Kinabalu is the highest mountain in Malaysia." },
+    { sentence: "She will travel to Japan next year." },
+    { sentence: "Please turn off the lights when you leave." },
+    { sentence: "My brother is good at playing chess." },
+    { sentence: "We recycle old paper and plastic bottles." },
+    { sentence: "The doctor told me to rest at home." },
+    { sentence: "Where did you go during the holidays?" },
+    { sentence: "It is going to rain this afternoon." },
+    { sentence: "Eating vegetables keeps our body healthy." },
+    { sentence: "The boy who won the race is my cousin." },
+    { sentence: "I could not sleep because it was very noisy." },
+    { sentence: "We must not throw rubbish into the river." },
+    { sentence: "My grandfather planted a mango tree." },
+    { sentence: "Which subject do you like the most?" },
+    { sentence: "They were playing football when it started to rain." },
+    { sentence: "Robots can help people do difficult jobs." },
+    { sentence: "The museum opens at nine in the morning." },
+    { sentence: "You should wash your hands before eating." },
+    { sentence: "I am interested in learning about space." },
+    { sentence: "Our class visited the science centre last week." }
+  ]
+};
+
+/* ============================================================
+   GAME
+   ============================================================ */
+let teams = [], sentences = [], index = 0, gameOver = false;
+let wonBy = [];   // per sentence: team index or null
+
+const $ = id => document.getElementById(id);
+const prevBtn = $("prevBtn"), nextBtn = $("nextBtn"), answerBtn = $("answerBtn"), answerText = $("answerText");
+
+// words without the full stop / question mark, so the last word isn't given away
+const wordsOf = s => s.trim().replace(/[.?!]+$/, "").split(/\s+/);
+
+function mixed(sentence){
+  const words = wordsOf(sentence);
+  if (new Set(words).size < 2) return words;
+  let out;
+  do { out = EG.shuffle(words); } while (out.join(" ") === words.join(" "));
+  return out;
+}
+
+function startGame(game){
+  teams = game.teams.map(t => ({ ...t, score: 0 }));
+  sentences = game.questions;
+  index = 0; gameOver = false;
+  wonBy = sentences.map(() => null);
+  render();
+}
+
+function showWords(){
+  $("words").replaceChildren(...mixed(sentences[index].sentence).map((w, i) =>
+    EG.h("span", { className: "word-tile", style: `animation-delay:${i * 0.05}s` }, w)));
+}
+
+function render(){
+  showWords();
+  answerText.textContent = sentences[index].sentence;
+  answerText.classList.toggle("shown", wonBy[index] !== null);
+  answerBtn.textContent = wonBy[index] !== null ? "Hide Answer" : "Show Answer";
+  prevBtn.disabled = index === 0;
+  nextBtn.textContent = index === sentences.length - 1 ? "🏁 See the winner" : "Next Sentence →";
+  nextBtn.disabled = gameOver;
+  EG.setCounter(`Sentence ${index + 1} / ${sentences.length}`);
+  renderScores();
+}
+
+function renderScores(){
+  EG.scoreboard($("scores"), teams, {
+    score: t => t.score,
+    button: { label: "✅ Correct", disabled: t => gameOver || teams[wonBy[index]] === t, onclick: (t, i) => award(i) }
+  });
+}
+
+// one point per sentence; tapping another team moves the point to them
+function award(t){
+  const before = wonBy[index];
+  if (gameOver || before === t) return;
+  if (before !== null) teams[before].score--;
+  teams[t].score++;
+  wonBy[index] = t;
+  EG.sfx.correct();
+  answerText.classList.add("shown");
+  answerBtn.textContent = "Hide Answer";
+  renderScores();
+  EG.bump(t);
+}
+
+function finish(){
+  gameOver = true;
+  render();
+  EG.winnerByScore(teams, t => t.score, ["point", "points"]);
+}
+
+answerBtn.onclick = () => {
+  const shown = answerText.classList.toggle("shown");
+  answerBtn.textContent = shown ? "Hide Answer" : "Show Answer";
+};
+$("mixBtn").onclick = showWords;
+prevBtn.onclick = () => { if (index > 0){ index--; render(); } };
+nextBtn.onclick = () => { if (index < sentences.length - 1){ index++; render(); } else finish(); };
+
+EG.init({
+  id: "sentence-scramble",
+  titleHTML: `<span class="drip">Sentence</span> Scramble`,
+  banks: BANKS,
+  fields: [{ key: "sentence", label: "Correct sentence" }],
+  editorHint: "Type the sentence in the correct order — the game mixes up the words.",
+  howTo: "The words of a sentence are mixed up. Teams race to say the correct sentence. Tap ✅ Correct for the team that gets it first.",
+  start: startGame,
+  finish
+});
+</script>
+
+</body>
+</html>

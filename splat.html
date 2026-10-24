@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPLAT! Classroom Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎨</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+/* ---------------- teams row ---------------- */
+.teams{
+  display:grid;
+  grid-template-columns:repeat(var(--n, 3), 1fr);
+  gap:clamp(12px, 2vw, 22px);
+}
+@media (max-width: 1000px){ .teams{ grid-template-columns:repeat(2, 1fr); } }
+@media (max-width: 600px){ .teams{ grid-template-columns:1fr; } }
+
+.team-card{
+  position:relative;
+  overflow:hidden;
+  border-radius:1rem;
+  padding:clamp(12px, 1.4vw, 20px);
+  border:3px solid var(--c);
+  background:rgba(255,255,255,0.04);
+  transition:filter 0.3s ease, opacity 0.3s ease;
+}
+.team-name{
+  font-family:var(--font-display);
+  font-weight:800;
+  font-size:1.6rem;
+  margin:0 0 4px;
+  color:var(--c);
+  overflow-wrap:anywhere;
+}
+.team-status{
+  font-family:var(--font-mono);
+  font-size:0.75rem;
+  text-transform:uppercase;
+  letter-spacing:1.5px;
+  color:var(--chalk-dim);
+  margin-bottom:0.3rem;
+  display:inline-block;
+}
+.team-status.eliminated{ color:var(--danger); }
+.team-lives{ font-size:1.2rem; letter-spacing:2px; margin-bottom:0.6rem; line-height:1.4; }
+.team-actions{ display:flex; gap:8px; }
+.team-actions button{ flex:1; font-size:1.05rem; padding:0.7rem 0.4rem; }
+
+/* eliminated state: grey out + paint splat overlay */
+.team-card.eliminated{ filter:grayscale(1) brightness(0.55); }
+.team-card.eliminated .team-actions{ pointer-events:none; }
+.splat-overlay{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:none; opacity:0;
+}
+.team-card.eliminated .splat-overlay{ opacity:1; animation:splatIn 0.5s cubic-bezier(.2,1.4,.4,1) both; }
+.splat-overlay svg{ width:78%; height:78%; }
+@keyframes splatIn{
+  0%{ opacity:0; transform:scale(0.2) rotate(-30deg); }
+  60%{ opacity:1; transform:scale(1.15) rotate(8deg); }
+  100%{ opacity:1; transform:scale(1) rotate(0deg); }
+}
+
+/* shake + red flash on every life lost */
+@keyframes shake{
+  0%,100%{ transform:translateX(0); }
+  20%{ transform:translateX(-8px); }
+  40%{ transform:translateX(7px); }
+  60%{ transform:translateX(-5px); }
+  80%{ transform:translateX(4px); }
+}
+.team-card.shake{ animation:shake 0.4s ease; }
+@keyframes hitFlash{
+  0%{ background:rgba(230,72,77,0.35); box-shadow:0 0 0 3px rgba(230,72,77,0.5) inset; }
+  100%{ background:rgba(255,255,255,0.04); box-shadow:0 0 0 0 rgba(230,72,77,0) inset; }
+}
+.team-card.hit-flash{ animation:hitFlash 0.5s ease-out; }
+
+/* a small paint droplet that pops and falls away on every hit */
+.hit-droplet{
+  position:absolute; top:50%; left:50%;
+  width:34px; height:34px; margin:-17px 0 0 -17px;
+  pointer-events:none; z-index:5; opacity:0;
+  font-size:30px; text-align:center; line-height:34px;
+}
+.hit-droplet.playing{ animation:dropletPop 0.5s ease-out forwards; }
+@keyframes dropletPop{
+  0%{ opacity:0; transform:scale(0.3) translateY(0); }
+  35%{ opacity:1; transform:scale(1.3) translateY(-6px); }
+  100%{ opacity:0; transform:scale(0.9) translateY(18px); }
+}
+
+/* target-picker modal */
+.picker-options{ display:flex; flex-direction:column; gap:10px; }
+.picker-options button{ font-family:var(--font-display); font-size:1.3rem; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+
+  <div class="setup" id="setup"></div>
+
+  <main id="game" class="hidden">
+    <div class="stage">
+      <div class="stage-label" id="stageLabel">On the board</div>
+      <div class="question-text" id="questionText"></div>
+      <div class="answer-text" id="answerText"></div>
+
+      <div class="controls">
+        <button class="btn-ghost btn-big" id="prevQuestionBtn">← Previous</button>
+        <button class="btn-ghost btn-big" id="toggleAnswerBtn">Show Answer</button>
+        <button class="btn-primary btn-big" id="nextQuestionBtn">Next Question →</button>
+      </div>
+    </div>
+
+    <div class="teams" id="teamsContainer" style="margin-top:clamp(10px, 1.4vw, 20px)">
+      <!-- team cards are rendered by JS -->
+    </div>
+  </main>
+
+  <div class="footer-note">Tap ⚙️ Setup to change the class, teams or questions.</div>
+</div>
+
+<!-- ===================== TARGET PICKER MODAL ===================== -->
+<div class="modal-backdrop hidden" id="pickerBackdrop">
+  <div class="modal" role="dialog">
+    <h3 id="pickerTitle">Who gets splatted?</h3>
+    <p>Choose the team to splat.</p>
+    <div class="picker-options" id="pickerOptions"></div>
+    <button class="btn-ghost" id="pickerCancel" style="margin-top:14px;width:100%;">Cancel</button>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+/* ============================================================
+   BUILT-IN QUESTIONS (Year 4, 5, 6 — KSSR / CEFR A1–A2)
+   Teachers can change these on the setup screen without
+   touching this file. A new "topic" starts a new stage.
+   ============================================================ */
+const BANKS = {
+  4: [
+    { topic: "Vocabulary", question: "What is the opposite of \"hot\"?", answer: "Cold" },
+    { topic: "Vocabulary", question: "What do we call a baby cat?", answer: "A kitten" },
+    { topic: "Vocabulary", question: "Name a fruit that is yellow.", answer: "Banana / mango / lemon" },
+    { topic: "Vocabulary", question: "What do you use to cut paper?", answer: "Scissors" },
+    { topic: "Vocabulary", question: "What is the opposite of \"big\"?", answer: "Small / little" },
+    { topic: "Vocabulary", question: "Who helps sick people in a hospital?", answer: "A doctor / a nurse" },
+    { topic: "Vocabulary", question: "What meal do we eat in the morning?", answer: "Breakfast" },
+    { topic: "Vocabulary", question: "Which day comes after Sunday?", answer: "Monday" },
+    { topic: "Vocabulary", question: "How many legs does a spider have?", answer: "Eight" },
+    { topic: "Grammar", question: "Fill in the blank: \"She ___ (eat) rice every day.\"", answer: "eats" },
+    { topic: "Grammar", question: "Which is correct: \"He like football\" or \"He likes football\"?", answer: "He likes football." },
+    { topic: "Grammar", question: "Fill in the blank: \"Look! The boys ___ (play) football now.\"", answer: "are playing" },
+    { topic: "Grammar", question: "One box, two ___.", answer: "boxes" },
+    { topic: "Grammar", question: "Fill in the blank: \"There ___ three cats under the table.\" (is / are)", answer: "are" },
+    { topic: "Grammar", question: "Fill in the blank: \"___ you swim?\" \"Yes, I can.\"", answer: "Can" },
+    { topic: "Grammar", question: "Which is correct: \"I have a apple\" or \"I have an apple\"?", answer: "I have an apple." },
+    { topic: "Grammar", question: "Fill in the blank: \"My father ___ (go) to work by car.\"", answer: "goes" },
+    { topic: "Prepositions", question: "Fill in: \"We keep ice cream ___ the fridge.\"", answer: "in" },
+    { topic: "Prepositions", question: "Fill in: \"The clock is ___ the wall.\"", answer: "on" },
+    { topic: "Prepositions", question: "Fill in: \"A fish lives ___ the water.\"", answer: "in" },
+    { topic: "Prepositions", question: "Fill in: \"The letter B is ___ A and C.\"", answer: "between" },
+    { topic: "Prepositions", question: "Fill in: \"When it rains, we stand ___ an umbrella.\"", answer: "under" },
+    { topic: "Prepositions", question: "Fill in: \"I wear my shoes ___ my feet.\"", answer: "on" }
+  ],
+  5: [
+    { topic: "Vocabulary", question: "What is the opposite of \"early\"?", answer: "Late" },
+    { topic: "Vocabulary", question: "Where do you go to borrow books?", answer: "The library" },
+    { topic: "Vocabulary", question: "Who flies a plane?", answer: "A pilot" },
+    { topic: "Vocabulary", question: "What meal do we eat in the evening?", answer: "Dinner" },
+    { topic: "Vocabulary", question: "Which month comes after March?", answer: "April" },
+    { topic: "Vocabulary", question: "What do you wear on your head on a hot, sunny day?", answer: "A hat / a cap" },
+    { topic: "Vocabulary", question: "What is the opposite of \"cheap\"?", answer: "Expensive" },
+    { topic: "Vocabulary", question: "Which animal is called \"the king of the jungle\"?", answer: "The lion" },
+    { topic: "Grammar", question: "Change to the past tense: \"I go to school.\"", answer: "I went to school." },
+    { topic: "Grammar", question: "Fill in the blank: \"Yesterday, we ___ (play) badminton.\"", answer: "played" },
+    { topic: "Grammar", question: "Fill in the blank: \"Last night, she ___ (eat) noodles.\"", answer: "ate" },
+    { topic: "Grammar", question: "Fill in the blank: \"An elephant is ___ (big) than a cat.\"", answer: "bigger" },
+    { topic: "Grammar", question: "Fill in the blank: \"Ali is the ___ (tall) boy in the class.\"", answer: "tallest" },
+    { topic: "Grammar", question: "Fill in the blank: \"How ___ apples do you have?\" (much / many)", answer: "many" },
+    { topic: "Grammar", question: "Fill in the blank: \"There ___ a lot of people at the park yesterday.\" (was / were)", answer: "were" },
+    { topic: "Grammar", question: "You are sick. \"You ___ go to the doctor.\" (should / shouldn't)", answer: "should" },
+    { topic: "Grammar", question: "Correct the sentence: \"She more tall than her brother.\"", answer: "She is taller than her brother." },
+    { topic: "Prepositions", question: "Fill in: \"My birthday is ___ May.\"", answer: "in" },
+    { topic: "Prepositions", question: "Fill in: \"We have English ___ Monday.\"", answer: "on" },
+    { topic: "Prepositions", question: "Fill in: \"School starts ___ 7.30 in the morning.\"", answer: "at" },
+    { topic: "Prepositions", question: "Fill in: \"I brush my teeth ___ night.\"", answer: "at" },
+    { topic: "Prepositions", question: "Fill in: \"It is very hot ___ the afternoon.\"", answer: "in" }
+  ],
+  6: [
+    { topic: "Vocabulary", question: "Who looks after your teeth?", answer: "A dentist" },
+    { topic: "Vocabulary", question: "What do we call using old paper and bottles again to make new things?", answer: "Recycling" },
+    { topic: "Vocabulary", question: "What is the opposite of \"dangerous\"?", answer: "Safe" },
+    { topic: "Vocabulary", question: "Which part of the body do you use to think?", answer: "The brain" },
+    { topic: "Vocabulary", question: "What do we call a person who writes books?", answer: "An author / a writer" },
+    { topic: "Vocabulary", question: "Which planet do we live on?", answer: "Earth" },
+    { topic: "Vocabulary", question: "What is the opposite of \"polite\"?", answer: "Rude" },
+    { topic: "Vocabulary", question: "Where do you go to see old and interesting things from the past?", answer: "A museum" },
+    { topic: "Grammar", question: "Fill in the blank: \"Mum ___ (cook) when the phone rang.\"", answer: "was cooking" },
+    { topic: "Grammar", question: "Fill in the blank: \"I think it ___ rain tomorrow.\"", answer: "will" },
+    { topic: "Grammar", question: "Fill in the blank: \"Look at those dark clouds! It is ___ to rain.\"", answer: "going" },
+    { topic: "Grammar", question: "Make it a question: \"She went to Penang.\"", answer: "Did she go to Penang?" },
+    { topic: "Grammar", question: "Fill in the blank: \"This is the ___ (good) day of my life!\"", answer: "best" },
+    { topic: "Grammar", question: "Fill in the blank: \"A cheetah runs very ___ (quick).\"", answer: "quickly" },
+    { topic: "Grammar", question: "Fill in the blank: \"Siti is the girl ___ won the race.\" (who / which)", answer: "who" },
+    { topic: "Grammar", question: "Correct the sentence: \"Yesterday I buyed a new bag.\"", answer: "Yesterday I bought a new bag." },
+    { topic: "Grammar", question: "Fill in the blank: \"When I was five, I ___ (can) ride a bicycle.\"", answer: "could" },
+    { topic: "Grammar", question: "Fill in the blank: \"You ___ throw rubbish into the river. It is wrong.\" (must / mustn't)", answer: "mustn't" },
+    { topic: "Prepositions", question: "Fill in: \"I am good ___ drawing.\"", answer: "at" },
+    { topic: "Prepositions", question: "Fill in: \"Are you afraid ___ snakes?\"", answer: "of" },
+    { topic: "Prepositions", question: "Fill in: \"We went to Langkawi ___ plane.\"", answer: "by" },
+    { topic: "Prepositions", question: "Fill in: \"The canteen is next ___ the library.\"", answer: "to" },
+    { topic: "Prepositions", question: "Fill in: \"Our school holiday starts ___ November.\"", answer: "in" }
+  ]
+};
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+const LIVES_PER_TEAM = 6;
+
+let teams = [];
+let gameOver = false;
+let sequence = [];
+let totalQuestions = 0;
+let currentIndex = 0;
+let answerShown = false;
+
+/* Flatten the question list into one sequence: a "stage"
+   announcement whenever the topic changes, then its questions. */
+function buildSequence(questions){
+  const seq = [];
+  let lastTopic = null;
+  questions.forEach(q => {
+    const topic = (q.topic || "").trim();
+    if (topic && topic !== lastTopic) seq.push({ type: "stage", name: topic });
+    lastTopic = topic;
+    seq.push({ type: "question", stageName: topic, ...q });
+  });
+  return seq;
+}
+
+/* ============================================================
+   DOM REFERENCES
+   ============================================================ */
+const questionTextEl   = document.getElementById("questionText");
+const answerTextEl     = document.getElementById("answerText");
+const stageLabelEl     = document.getElementById("stageLabel");
+const teamsContainerEl = document.getElementById("teamsContainer");
+const toggleAnswerBtn  = document.getElementById("toggleAnswerBtn");
+const prevQuestionBtn  = document.getElementById("prevQuestionBtn");
+const nextQuestionBtn  = document.getElementById("nextQuestionBtn");
+
+const pickerBackdrop = document.getElementById("pickerBackdrop");
+const pickerOptions  = document.getElementById("pickerOptions");
+const pickerTitle    = document.getElementById("pickerTitle");
+const pickerCancel   = document.getElementById("pickerCancel");
+
+/* ============================================================
+   SPLAT SOUND (synthesized — the other sounds are in common.js)
+   ============================================================ */
+function playSplatSound(){
+  try {
+    const ctx = EG.audio();
+
+    // wet noise burst for the "splat" texture
+    const bufferSize = ctx.sampleRate * 0.25;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++){
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = "lowpass";
+    noiseFilter.frequency.setValueAtTime(1200, ctx.currentTime);
+    noiseFilter.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.25);
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.5, ctx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start();
+    noise.stop(ctx.currentTime + 0.25);
+
+    // low punchy "thud" underneath the splat
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(180, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.2);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.4, ctx.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (e) { /* no sound */ }
+}
+
+/* ============================================================
+   PAINT SPLAT SVG (signature element)
+   ============================================================ */
+const SPLAT_SVG = `
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#14201B">
+    <path d="M100 20c10 0 14 14 24 12s18-16 28-8 4 22 12 30 22 6 22 18-16 12-18 22 8 20-2 28-22-2-30 6-8 20-20 20-14-14-24-12-18 16-28 8-4-22-12-30-22-6-22-18 16-12 18-22-8-20 2-28 22 2 30-6 8-20 20-20z"/>
+  </g>
+  <text x="100" y="112" font-family="Baloo 2, sans-serif" font-size="34" font-weight="800"
+        text-anchor="middle" fill="#F5F1E6" transform="rotate(-6 100 100)">SPLAT!</text>
+</svg>`;
+
+/* ============================================================
+   RENDER FUNCTIONS
+   ============================================================ */
+function renderCurrent(){
+  const item = sequence[currentIndex];
+  answerShown = false;
+  answerTextEl.classList.remove("shown");
+  toggleAnswerBtn.textContent = "Show Answer";
+
+  if (item.type === "stage"){
+    questionTextEl.innerHTML = `🎯 Now it's time for<br><span class="stage-name">${EG.esc(item.name)}!</span>`;
+    answerTextEl.textContent = "";
+    stageLabelEl.textContent = "Get ready!";
+    EG.setCounter(`New stage`);
+    toggleAnswerBtn.disabled = true;
+  } else {
+    questionTextEl.textContent = item.question;
+    answerTextEl.textContent = item.answer;
+    stageLabelEl.textContent = item.stageName || "On the board";
+    toggleAnswerBtn.disabled = false;
+
+    const questionNumber = sequence
+      .slice(0, currentIndex + 1)
+      .filter(i => i.type === "question").length;
+    EG.setCounter(`Question ${String(questionNumber).padStart(2, "0")} / ${totalQuestions}`);
+  }
+
+  const isLast = currentIndex >= sequence.length - 1;
+  nextQuestionBtn.textContent = isLast ? "🏁 See the winner" : item.type === "stage" ? "Begin →" : "Next Question →";
+  nextQuestionBtn.disabled = gameOver;
+  prevQuestionBtn.disabled = currentIndex === 0;
+}
+
+function renderTeams(){
+  teamsContainerEl.innerHTML = "";
+  teamsContainerEl.style.setProperty("--n", teams.length);
+
+  teams.forEach(team => {
+    const isEliminated = team.status === "eliminated";
+    const activeOthers = teams.filter(t => t.id !== team.id && t.status === "active");
+    const hearts = Array.from({ length: LIVES_PER_TEAM }, (_, i) =>
+      i < team.lives ? "❤️" : "🖤"
+    ).join(" ");
+
+    const card = document.createElement("div");
+    card.className = `team-card${isEliminated ? " eliminated" : ""}`;
+    card.style.setProperty("--c", team.color);
+    card.id = `team-card-${team.id}`;
+
+    card.innerHTML = `
+      <h3 class="team-name">${EG.esc(team.name)}</h3>
+      <span class="team-status${isEliminated ? " eliminated" : ""}">
+        ${isEliminated ? "Eliminated" : "Active"}
+      </span>
+      <div class="team-lives" aria-label="${team.lives} lives">${hearts}</div>
+      <div class="team-actions">
+        <button class="btn-primary" data-action="correct" title="Correct — splat another team" ${isEliminated || gameOver || activeOthers.length === 0 ? "disabled" : ""}>
+          ✅ Correct
+        </button>
+        <button class="btn-danger" data-action="wrong" title="Wrong — splat yourself" ${isEliminated || gameOver ? "disabled" : ""}>
+          ❌ Wrong
+        </button>
+      </div>
+      <div class="splat-overlay">${isEliminated ? SPLAT_SVG : ""}</div>
+      <div class="hit-droplet" id="hit-droplet-${team.id}">💥</div>
+    `;
+
+    card.querySelector('[data-action="correct"]').addEventListener("click", () => openPicker(team));
+    card.querySelector('[data-action="wrong"]').addEventListener("click", () => selfSplat(team));
+
+    teamsContainerEl.appendChild(card);
+  });
+}
+
+/* ============================================================
+   GAME ACTIONS
+   ============================================================ */
+function hitTeam(team){
+  team.lives = Math.max(0, team.lives - 1);
+  if (team.lives === 0){
+    team.status = "eliminated";
+  }
+  playSplatSound();
+  renderTeams();
+
+  const card = document.getElementById(`team-card-${team.id}`);
+  if (card){
+    card.classList.add("shake", "hit-flash");
+    setTimeout(() => card.classList.remove("shake", "hit-flash"), 500);
+  }
+
+  const droplet = document.getElementById(`hit-droplet-${team.id}`);
+  if (droplet){
+    droplet.classList.remove("playing");
+    // force reflow so the animation can replay on repeated hits
+    void droplet.offsetWidth;
+    droplet.classList.add("playing");
+  }
+
+  checkForWinner();
+}
+
+function selfSplat(team){
+  hitTeam(team);
+}
+
+function checkForWinner(){
+  if (gameOver) return;
+  const remaining = teams.filter(t => t.status === "active");
+  if (remaining.length === 1){
+    endGame(`🎉 ${remaining[0].name} Wins! 🎉`, "Last team standing takes the game.");
+  } else if (remaining.length === 0){
+    endGame("Everyone got splatted — no survivors!");
+  }
+}
+
+function endGame(title, note){
+  gameOver = true;
+  closePicker();
+  renderCurrent();
+  renderTeams();
+  if (title) EG.showWinner(title, teams.map(t => `${t.name}: ${EG.plural(t.lives, ["life", "lives"])}`), note);
+  else EG.winnerByScore(teams, t => t.lives, ["life", "lives"], "The team with the most lives wins.");
+}
+
+function openPicker(actingTeam){
+  const targets = teams.filter(t => t.id !== actingTeam.id && t.status === "active");
+  if (targets.length === 0) return;
+
+  pickerTitle.textContent = `${actingTeam.name} got it right! Who gets splatted?`;
+  pickerOptions.innerHTML = "";
+
+  targets.forEach(target => {
+    const btn = document.createElement("button");
+    btn.className = "btn-ghost";
+    btn.textContent = `${target.name} (${target.lives} ${target.lives === 1 ? "life" : "lives"} left)`;
+    btn.addEventListener("click", () => {
+      closePicker();
+      hitTeam(target);
+    });
+    pickerOptions.appendChild(btn);
+  });
+
+  pickerBackdrop.classList.remove("hidden");
+}
+
+function closePicker(){
+  pickerBackdrop.classList.add("hidden");
+}
+
+function startGame(game){
+  teams = game.teams.map((t, i) => ({ ...t, id: i + 1, lives: LIVES_PER_TEAM, status: "active" }));
+  sequence = buildSequence(game.questions);
+  totalQuestions = game.questions.length;
+  currentIndex = 0;
+  gameOver = false;
+  closePicker();
+  renderCurrent();
+  renderTeams();
+}
+
+/* ============================================================
+   EVENT LISTENERS
+   ============================================================ */
+toggleAnswerBtn.addEventListener("click", () => {
+  answerShown = !answerShown;
+  answerTextEl.classList.toggle("shown", answerShown);
+  toggleAnswerBtn.textContent = answerShown ? "Hide Answer" : "Show Answer";
+});
+
+prevQuestionBtn.addEventListener("click", () => {
+  if (currentIndex > 0){
+    currentIndex--;
+    renderCurrent();
+  }
+});
+
+nextQuestionBtn.addEventListener("click", () => {
+  if (currentIndex < sequence.length - 1){
+    currentIndex++;
+    renderCurrent();
+  } else {
+    endGame();   // questions finished: most lives wins
+  }
+});
+
+pickerCancel.addEventListener("click", closePicker);
+pickerBackdrop.addEventListener("click", (e) => {
+  if (e.target === pickerBackdrop) closePicker();
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+EG.init({
+  id: "splat",
+  titleHTML: `<span class="drip">SPLAT!</span> Classroom Showdown`,
+  banks: BANKS,
+  fields: [
+    { key: "topic", label: "Topic (optional)", optional: true },
+    { key: "question", label: "Question", grow: 4 },
+    { key: "answer", label: "Answer", grow: 2 }
+  ],
+  defaultTeams: 3,
+  howTo: "Each team has 6 lives. Correct answer: splat another team. Wrong answer: splat yourself. Last team standing — or the team with the most lives when the questions run out — wins!",
+  start: startGame,
+  finish: () => endGame()
+});
+</script>
+
+</body>
+</html>

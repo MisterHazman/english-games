@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mystery Picture — English Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖼️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+.play{ display:flex; gap:clamp(16px, 3vw, 40px); align-items:center; justify-content:center; flex-wrap:wrap; }
+.pic{
+  --size:min(24rem, 86vw, 44vh);
+  width:var(--size); height:var(--size);
+  position:relative;
+  border-radius:1rem;
+  overflow:hidden;
+  background:#F5F1E6;
+  display:grid; place-items:center;
+  flex:none;
+}
+.emoji{ font-size:calc(var(--size) * 0.72); line-height:1; user-select:none; }
+.tiles{ position:absolute; inset:0; display:grid; grid-template-columns:repeat(3, 1fr); }
+.tile{
+  border-radius:0;
+  border:2px solid var(--board);
+  font-family:var(--font-display);
+  font-size:calc(var(--size) * 0.14);
+  color:var(--board);
+  transition:opacity 0.35s ease, transform 0.35s ease;
+}
+.tile:nth-child(odd){ background:#FFC145; }
+.tile:nth-child(even){ background:#2EC4B6; }
+.tile:hover:not(:disabled){ transform:none; filter:brightness(1.1); }
+.tile.gone{ opacity:0; transform:scale(0.6); pointer-events:none; }
+.side{ text-align:center; flex:1 1 18rem; max-width:40rem; }
+.topic{ font-family:var(--font-display); font-size:1.8rem; font-weight:700; }
+.topic b{ color:var(--gold); }
+.points-now{ font-size:1.3rem; color:var(--chalk-dim); margin-top:0.3rem; }
+.points-now b{ font-size:2.2rem; color:var(--chalk); font-family:var(--font-display); margin-left:0.4rem; }
+.word{ font-family:var(--font-display); font-weight:800; font-size:2.8rem; line-height:1.2; color:var(--gold); min-height:1.2em; visibility:hidden; text-transform:uppercase; }
+.word.shown{ visibility:visible; }
+.side .controls{ margin-top:0.6rem; }
+#scores{ margin-top:clamp(12px, 2vw, 24px); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+
+  <div class="setup" id="setup"></div>
+
+  <main id="game" class="hidden">
+    <div class="stage">
+      <div class="play">
+        <div class="pic">
+          <div class="emoji" id="emoji" aria-hidden="true"></div>
+          <div class="tiles" id="tiles"></div>
+        </div>
+        <div class="side">
+          <div class="stage-label">What is the mystery picture?</div>
+          <div class="topic" id="topic"></div>
+          <div class="points-now" id="pointsNow"></div>
+          <div class="word" id="word"></div>
+          <div class="controls">
+            <button class="btn-ghost btn-big" id="prevBtn">← Previous</button>
+            <button class="btn-ghost btn-big" id="answerBtn">Show Answer</button>
+            <button class="btn-primary btn-big" id="nextBtn">Next Picture →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="scores"></div>
+  </main>
+
+  <div class="footer-note">Tap a tile to open it. Fewer tiles open = more points for the team that guesses the word.</div>
+</div>
+
+<script src="common.js"></script>
+<script>
+/* ============================================================
+   BUILT-IN PICTURES — vocabulary by topic
+   (Year 4, 5, 6 — KSSR / CEFR A1–A2)
+   ============================================================ */
+const BANKS = {
+  4: [
+    { emoji: "🐘", word: "elephant", topic: "Animals" },
+    { emoji: "🦒", word: "giraffe", topic: "Animals" },
+    { emoji: "🐒", word: "monkey", topic: "Animals" },
+    { emoji: "🐢", word: "turtle", topic: "Animals" },
+    { emoji: "🐔", word: "chicken", topic: "Animals" },
+    { emoji: "🦁", word: "lion", topic: "Animals" },
+    { emoji: "🍉", word: "watermelon", topic: "Food" },
+    { emoji: "🍌", word: "banana", topic: "Food" },
+    { emoji: "🍞", word: "bread", topic: "Food" },
+    { emoji: "🥚", word: "egg", topic: "Food" },
+    { emoji: "🍦", word: "ice cream", topic: "Food" },
+    { emoji: "🍕", word: "pizza", topic: "Food" },
+    { emoji: "🚗", word: "car", topic: "Transport" },
+    { emoji: "🚌", word: "bus", topic: "Transport" },
+    { emoji: "🚲", word: "bicycle", topic: "Transport" },
+    { emoji: "✈️", word: "aeroplane", topic: "Transport" },
+    { emoji: "🏠", word: "house", topic: "Places" },
+    { emoji: "🏫", word: "school", topic: "Places" },
+    { emoji: "⚽", word: "football", topic: "Sports" },
+    { emoji: "📚", word: "books", topic: "In the classroom" },
+    { emoji: "✏️", word: "pencil", topic: "In the classroom" },
+    { emoji: "⏰", word: "clock", topic: "At home" }
+  ],
+  5: [
+    { emoji: "☀️", word: "sun", topic: "Weather" },
+    { emoji: "🌧️", word: "rain", topic: "Weather" },
+    { emoji: "🌈", word: "rainbow", topic: "Weather" },
+    { emoji: "❄️", word: "snow", topic: "Weather" },
+    { emoji: "⛈️", word: "storm", topic: "Weather" },
+    { emoji: "🌙", word: "moon", topic: "In the sky" },
+    { emoji: "🏸", word: "badminton", topic: "Sports" },
+    { emoji: "🏀", word: "basketball", topic: "Sports" },
+    { emoji: "🎣", word: "fishing", topic: "Hobbies" },
+    { emoji: "🎸", word: "guitar", topic: "Music" },
+    { emoji: "🛏️", word: "bed", topic: "At home" },
+    { emoji: "📺", word: "television", topic: "At home" },
+    { emoji: "🔑", word: "key", topic: "At home" },
+    { emoji: "☂️", word: "umbrella", topic: "Things we use" },
+    { emoji: "🎂", word: "cake", topic: "Food" },
+    { emoji: "🍇", word: "grapes", topic: "Food" },
+    { emoji: "🍍", word: "pineapple", topic: "Food" },
+    { emoji: "🐙", word: "octopus", topic: "Sea animals" },
+    { emoji: "🦈", word: "shark", topic: "Sea animals" },
+    { emoji: "🐬", word: "dolphin", topic: "Sea animals" },
+    { emoji: "🦀", word: "crab", topic: "Sea animals" },
+    { emoji: "🐝", word: "bee", topic: "Insects" }
+  ],
+  6: [
+    { emoji: "🌋", word: "volcano", topic: "Nature" },
+    { emoji: "🏝️", word: "island", topic: "Nature" },
+    { emoji: "🌳", word: "tree", topic: "Nature" },
+    { emoji: "🌵", word: "cactus", topic: "Nature" },
+    { emoji: "🚀", word: "rocket", topic: "Space" },
+    { emoji: "🌍", word: "Earth", topic: "Space" },
+    { emoji: "🔭", word: "telescope", topic: "Space" },
+    { emoji: "💻", word: "laptop", topic: "Technology" },
+    { emoji: "📷", word: "camera", topic: "Technology" },
+    { emoji: "🤖", word: "robot", topic: "Technology" },
+    { emoji: "🎤", word: "microphone", topic: "Technology" },
+    { emoji: "🚑", word: "ambulance", topic: "Health" },
+    { emoji: "💊", word: "medicine", topic: "Health" },
+    { emoji: "🦷", word: "tooth", topic: "Health" },
+    { emoji: "🧼", word: "soap", topic: "Health" },
+    { emoji: "♻️", word: "recycle", topic: "Environment" },
+    { emoji: "🗑️", word: "rubbish bin", topic: "Environment" },
+    { emoji: "🚢", word: "ship", topic: "Travel" },
+    { emoji: "🚂", word: "train", topic: "Travel" },
+    { emoji: "🗺️", word: "map", topic: "Travel" },
+    { emoji: "🧳", word: "suitcase", topic: "Travel" },
+    { emoji: "🏰", word: "castle", topic: "Places" }
+  ]
+};
+
+/* ============================================================
+   GAME
+   ============================================================ */
+const MAX_POINTS = 10;   // 1 tile open = 9 points ... all 9 open = 1 point
+let teams = [], pictures = [], index = 0, gameOver = false;
+let opened = [];   // per picture: which tiles the teacher opened
+let wonBy = [];    // per picture: { team, points } or null
+let shown = [];    // per picture: answer revealed
+
+const $ = id => document.getElementById(id);
+const prevBtn = $("prevBtn"), nextBtn = $("nextBtn"), answerBtn = $("answerBtn");
+
+const pointsFor = i => Math.max(1, MAX_POINTS - opened[i].length);
+
+function startGame(game){
+  teams = game.teams.map(t => ({ ...t, score: 0 }));
+  pictures = game.questions;
+  index = 0; gameOver = false;
+  opened = pictures.map(() => []);
+  wonBy = pictures.map(() => null);
+  shown = pictures.map(() => false);
+  render();
+}
+
+function render(){
+  const p = pictures[index], won = wonBy[index], done = won || shown[index];
+  $("emoji").textContent = p.emoji;
+  $("topic").innerHTML = `Topic: <b>${EG.esc(p.topic)}</b>`;
+  $("word").textContent = p.word;
+  $("word").classList.toggle("shown", !!done);
+  $("pointsNow").innerHTML = won
+    ? `${EG.esc(teams[won.team].name)} got it!<b>+${won.points} points</b>`
+    : `Points if you guess now:<b>${pointsFor(index)}</b>`;
+
+  $("tiles").replaceChildren(...Array.from({ length: 9 }, (_, i) => EG.h("button", {
+    className: "tile" + (done || opened[index].includes(i) ? " gone" : ""),
+    title: `Open tile ${i + 1}`,
+    onclick: () => openTile(i)
+  }, String(i + 1))));
+
+  answerBtn.disabled = !!done;
+  prevBtn.disabled = index === 0;
+  nextBtn.textContent = index === pictures.length - 1 ? "🏁 See the winner" : "Next Picture →";
+  nextBtn.disabled = gameOver;
+  EG.setCounter(`Picture ${index + 1} / ${pictures.length}`);
+
+  EG.scoreboard($("scores"), teams, {
+    score: t => t.score,
+    button: { label: "✅ Got it!", disabled: t => gameOver || (won && teams[won.team] === t), onclick: (t, i) => award(i) }
+  });
+}
+
+function openTile(i){
+  if (gameOver || opened[index].includes(i)) return;
+  opened[index].push(i);
+  EG.sfx.pop();
+  render();
+}
+
+// one winner per picture; tapping another team moves the points to them
+function award(t){
+  const before = wonBy[index];
+  if (gameOver || before?.team === t) return;
+  const points = before ? before.points : pointsFor(index);
+  if (before) teams[before.team].score -= points;
+  teams[t].score += points;
+  wonBy[index] = { team: t, points };
+  EG.sfx.correct();
+  render();
+  EG.bump(t);
+}
+
+function finish(){
+  gameOver = true;
+  render();
+  EG.winnerByScore(teams, t => t.score, ["point", "points"]);
+}
+
+answerBtn.onclick = () => { shown[index] = true; EG.sfx.pop(); render(); };
+prevBtn.onclick = () => { if (index > 0){ index--; render(); } };
+nextBtn.onclick = () => { if (index < pictures.length - 1){ index++; render(); } else finish(); };
+
+EG.init({
+  id: "mystery-picture",
+  titleHTML: `<span class="drip">Mystery</span> Picture`,
+  banks: BANKS,
+  fields: [
+    { key: "emoji", label: "Picture (emoji)" },
+    { key: "word", label: "Answer word", grow: 2 },
+    { key: "topic", label: "Topic hint", grow: 2 }
+  ],
+  editorHint: "For the picture, paste one emoji (on Windows press ⊞ Win + . to open the emoji keyboard).",
+  howTo: "A picture is hidden under 9 tiles. Open tiles one at a time. The first team to say the word gets points — fewer tiles open means more points!",
+  start: startGame,
+  finish
+});
+</script>
+
+</body>
+</html>
