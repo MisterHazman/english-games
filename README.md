@@ -13,11 +13,19 @@ Play on a laptop + projector or on a phone. The teacher controls everything.
 | Sentence Scramble | Mixed-up words. First team to say the sentence correctly gets a point. |
 | Word Bomb | Answer before the timer runs out, or lose a life. Teams take turns. |
 
-Every game starts with a setup screen: choose Year 4, 5 or 6, the number of teams and their
-names, and edit or add questions. Settings are saved in the browser on that computer.
+Every game starts with a setup screen:
+- **Year** 4, 5 or 6
+- **Question set**: Set 1 to Set 7 (20–23 questions each), or **All sets**
+- **Categories**: tick Vocabulary, Grammar, Tenses or Prepositions to play only those questions
+  (Mystery Picture uses its picture topics, like Animals or Food)
+- **Teams**: up to 8 teams (Tug of War is always 2), with their names
+- **Edit questions**: change or add questions in any set
+
+Settings and edits are saved in the browser on that computer.
 
 ## Files
 - `index.html`: the menu
-- `splat.html`, `tug-of-war.html`, `mystery-picture.html`, `sentence-scramble.html`, `word-bomb.html`: the games (built-in questions are at the top of each file)
+- `splat.html`, `tug-of-war.html`, `mystery-picture.html`, `sentence-scramble.html`, `word-bomb.html`: the games (Set 1 questions are at the top of each file)
+- `sets/`: Question Sets 2 to 7 for each game, one file per game
 - `common.js`, `common.css`: shared setup screen, sounds, buttons and winner screen
 - `background-music.mp3`: only downloads when you press **Music**

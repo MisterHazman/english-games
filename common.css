@@ -162,6 +162,14 @@ button:focus-visible, .btn-link:focus-visible, input:focus-visible, summary:focu
   grid-template-columns:repeat(auto-fit, minmax(13rem, 1fr));
   gap:clamp(10px, 1.6vw, 20px);
 }
+/* 5–8 teams: two even rows, smaller cards so everyone fits on the projector */
+.scoreboard.many{ grid-template-columns:repeat(var(--cols, 4), 1fr); gap:clamp(8px, 1.2vw, 14px); }
+.scoreboard.many .score-card{ padding:0.45rem 0.6rem; gap:0.2rem 0.6rem; }
+.scoreboard.many .sc-name{ font-size:1.2rem; }
+.scoreboard.many .sc-score{ font-size:2rem; }
+.scoreboard.many .sc-extra{ font-size:0.95rem; letter-spacing:1px; }
+.scoreboard.many .btn-big{ font-size:1rem; padding:0.55rem 0.6rem; }
+@media (max-width: 900px){ .scoreboard.many{ grid-template-columns:repeat(2, 1fr); } }
 .score-card{
   border:3px solid var(--c);
   border-radius:1rem;
@@ -264,3 +272,9 @@ input[type="text"]{
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
 }
+
+/* ---------------- question sets and categories (setup screen) ---------------- */
+.seg.cats button{ font-size:1.05rem; padding:0.6rem 1.1rem; }
+.seg.cats button:not(.on){ color:var(--chalk-dim); text-decoration:line-through; }
+.q-count{ font-weight:700; margin:0.7rem 0 0; color:var(--gold); }
+.q-count.none{ color:var(--danger); }

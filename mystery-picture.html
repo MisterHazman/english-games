@@ -80,6 +80,7 @@
 </div>
 
 <script src="common.js"></script>
+<script src="sets/mystery-picture.js"></script>
 <script>
 /* ============================================================
    BUILT-IN PICTURES — vocabulary by topic
@@ -246,12 +247,15 @@ EG.init({
   id: "mystery-picture",
   titleHTML: `<span class="drip">Mystery</span> Picture`,
   banks: BANKS,
+  moreSets: MORE_SETS,
+  categoryOf: q => q.topic,
+  categoryLabel: "Topics",
   fields: [
     { key: "emoji", label: "Picture (emoji)" },
     { key: "word", label: "Answer word", grow: 2 },
     { key: "topic", label: "Topic hint", grow: 2 }
   ],
-  editorHint: "For the picture, paste one emoji (on Windows press ⊞ Win + . to open the emoji keyboard).",
+  editorHint: "For the picture, paste one emoji (on Windows press ⊞ Win + . to open the emoji keyboard). The topic is also used for the tick boxes.",
   howTo: "A picture is hidden under 9 tiles. Open tiles one at a time. The first team to say the word gets points — fewer tiles open means more points!",
   start: startGame,
   finish

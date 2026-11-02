@@ -5,8 +5,8 @@
    Every game page loads this file and calls EG.init({...}).
    ============================================================ */
 const EG = (() => {
-  const COLORS = ["#FF5A5F", "#2EC4B6", "#FFC145", "#A78BFA"];
-  const NAMES  = ["Team Red", "Team Teal", "Team Gold", "Team Purple"];
+  const COLORS = ["#FF5A5F", "#2EC4B6", "#FFC145", "#A78BFA", "#4EA8FF", "#FF8A3D", "#F472B6", "#9BE15D"];
+  const NAMES  = ["Team Red", "Team Teal", "Team Gold", "Team Purple", "Team Blue", "Team Orange", "Team Pink", "Team Lime"];
   const YEARS  = [4, 5, 6];
   const MENU_URL = document.body.dataset.menu || "index.html";
 
@@ -143,7 +143,8 @@ const EG = (() => {
 
   /* ---------------- team score cards ---------------- */
   function scoreboard(el, teams, { score, extra, button }){
-    el.className = "scoreboard";
+    el.className = "scoreboard" + (teams.length > 4 ? " many" : "");
+    el.style.setProperty("--cols", Math.ceil(teams.length / 2));   // 5–8 teams: two rows
     el.replaceChildren(...teams.map((t, i) => h("div", {
         className: "score-card" + (t.out ? " out" : "") + (t.turn ? " turn" : ""),
         id: `score-card-${i}`,
@@ -169,8 +170,12 @@ const EG = (() => {
     try { s = JSON.parse(localStorage.getItem(storageKey())) || {}; } catch (e) { /* private window etc. */ }
     const options = {};
     cfg.options.forEach(o => options[o.key] = o.choices.includes(s.options?.[o.key]) ? s.options[o.key] : o.default);
+    const year = YEARS.includes(s.year) ? s.year : 4;
+    const set = Number(s.set);
     return {
-      year: YEARS.includes(s.year) ? s.year : 4,
+      year,
+      set: set >= 0 && set <= setCount(year) ? set : 1,   // 0 = all sets
+      off: Array.isArray(s.off) ? s.off.map(String) : [],   // categories the teacher un-ticked
       teamCount: Math.min(cfg.maxTeams, Math.max(cfg.minTeams, Number(s.teamCount) || cfg.defaultTeams)),
       names: Array.isArray(s.names) ? s.names.map(String) : [],
       custom: s.custom && typeof s.custom === "object" ? s.custom : {},
@@ -180,11 +185,36 @@ const EG = (() => {
   function persist(){
     try { localStorage.setItem(storageKey(), JSON.stringify(settings)); } catch (e) { /* not saved, game still works */ }
   }
-  // the teacher's edited list for this year, or a fresh copy of the built-in one
-  function questionsFor(year){
-    const c = settings.custom[year];
-    return Array.isArray(c) ? c : cfg.banks[year].map(q => ({ ...q }));
+
+  /* ---------------- question sets ----------------
+     Set 1 is the list at the top of each game file (cfg.banks).
+     Sets 2, 3, ... come from the sets/ file of that game (cfg.moreSets). */
+  const setCount = year => 1 + (cfg.moreSets?.[year]?.length || 0);
+  const builtIn = (year, set) => set === 1 ? cfg.banks[year] : cfg.moreSets[year][set - 2];
+  // Set 1 edits are saved under "4", "5", "6" (as before); other sets under "4-2", "4-3", ...
+  const customKey = (year, set) => set === 1 ? String(year) : `${year}-${set}`;
+  // the teacher's edited list for this year and set, or a fresh copy of the built-in one
+  function questionsFor(year, set){
+    const c = settings.custom[customKey(year, set)];
+    return Array.isArray(c) ? c : builtIn(year, set).map(q => ({ ...q }));
   }
+  // every question of the chosen set, or of all sets when set is 0
+  function pool(year, set){
+    if (set !== 0) return questionsFor(year, set);
+    return Array.from({ length: setCount(year) }, (_, i) => questionsFor(year, i + 1)).flat();
+  }
+
+  /* ---------------- categories ----------------
+     Each question has a category (Vocabulary, Grammar, Tenses, Prepositions...).
+     The teacher ticks which categories to play. */
+  const CATEGORY_ORDER = ["Vocabulary", "Grammar", "Tenses", "Prepositions"];
+  const categoryOf = q => (cfg.categoryOf ? cfg.categoryOf(q) : String(q.category ?? "")).trim() || "Other";
+  function categoriesIn(list){
+    const seen = [...new Set(list.map(categoryOf))];
+    return [...CATEGORY_ORDER.filter(c => seen.includes(c)), ...seen.filter(c => !CATEGORY_ORDER.includes(c))];
+  }
+  const complete = q => cfg.fields.every(f => f.optional || String(q[f.key] ?? "").trim());
+  const chosen = (year, set) => pool(year, set).filter(q => complete(q) && !settings.off.includes(categoryOf(q)));
 
   /* ---------------- top bar ---------------- */
   function buildTopbar(){
@@ -240,10 +270,11 @@ const EG = (() => {
     for (let n = cfg.minTeams; n <= cfg.maxTeams; n++) teamCounts.push([`${n} teams`, n]);
 
     // question editor: every change is saved straight away
-    const list = questionsFor(s.year);
+    const list = s.set === 0 ? [] : questionsFor(s.year, s.set);
+    const key = customKey(s.year, s.set);
     const summary = h("summary", {});
-    const setSummary = () => summary.textContent = `✏️ Edit questions — Year ${s.year} (${list.length})`;
-    const save = () => { s.custom[s.year] = list; persist(); setSummary(); };
+    const setSummary = () => summary.textContent = `✏️ Edit questions — Year ${s.year}, Set ${s.set} (${list.length})`;
+    const save = () => { s.custom[key] = list; persist(); setSummary(); };
     setSummary();
     const rows = h("div", { className: "q-rows" }, ...list.map((q, i) => h("div", { className: "q-row" },
       h("span", { className: "q-num" }, String(i + 1)),
@@ -265,24 +296,48 @@ const EG = (() => {
           inputs[0]?.focus();
         } }, "➕ Add a question"),
         h("button", { className: "btn-ghost", onclick: async () => {
-          if (await ask("Use the built-in questions?", `Your changes to the Year ${s.year} questions will be removed.`, "Yes, use built-in")){
-            delete s.custom[s.year]; persist(); renderSetup();
+          if (await ask("Use the built-in questions?", `Your changes to the Year ${s.year}, Set ${s.set} questions will be removed.`, "Yes, use built-in")){
+            delete s.custom[key]; persist(); renderSetup();
           }
         } }, "↩️ Use built-in questions")));
     editor.addEventListener("toggle", () => editorOpen = editor.open);
+    const editorBox = s.set === 0
+      ? h("section", { className: "setup-card" }, h("p", { className: "hint", style: "margin:0" }, "✏️ To edit questions, choose one set (Set 1, Set 2, …) above."))
+      : editor;
+
+    // category tick boxes for the chosen set
+    const cats = categoriesIn(pool(s.year, s.set).filter(complete));
+    const count = chosen(s.year, s.set).length;
+    const catBox = cats.length > 1 ? [
+      h("p", { className: "hint" }, `${cfg.categoryLabel || "Categories"} — tap to tick or untick:`),
+      h("div", { className: "seg cats" }, ...cats.map(c => {
+        const on = !s.off.includes(c);
+        return h("button", { className: on ? "on" : "", ariaPressed: String(on), onclick: () => {
+          s.off = on ? [...s.off, c] : s.off.filter(x => x !== c);
+          persist(); renderSetup();
+        } }, (on ? "✓ " : "") + c);
+      })),
+      h("p", { className: "q-count" + (count ? "" : " none") }, count ? `→ ${plural(count, ["question", "questions"])} selected` : "→ No questions selected. Tick at least one.")
+    ] : [];
 
     const error = h("div", { className: "error", role: "alert" });
 
     box.replaceChildren(
       h("h2", {}, "Game setup"),
       cfg.howTo ? h("p", { className: "hint", style: "text-align:center;font-size:1.05rem" }, cfg.howTo) : null,
-      card("1. Choose the class", seg(YEARS.map(y => [`Year ${y}`, y]), s.year, y => s.year = y)),
+      card("1. Choose the class and questions", seg(YEARS.map(y => [`Year ${y}`, y]), s.year, y => {
+          s.year = y;
+          if (s.set > setCount(y)) s.set = 1;
+        }),
+        setCount(s.year) > 1 ? h("p", { className: "hint" }, "Question set — use a different set each lesson so the questions stay fresh:") : null,
+        setCount(s.year) > 1 ? seg([...Array.from({ length: setCount(s.year) }, (_, i) => [`Set ${i + 1}`, i + 1]), ["All sets", 0]], s.set, n => s.set = n) : null,
+        ...catBox),
       card("2. Teams",
         cfg.maxTeams > cfg.minTeams ? seg(teamCounts, s.teamCount, n => s.teamCount = n) : null,
         names),
       ...cfg.options.map((o, i) => card(`${i + 3}. ${o.label}`,
         seg(o.choices.map(c => [`${c} ${o.unit}`, c]), s.options[o.key], v => s.options[o.key] = v))),
-      editor,
+      editorBox,
       h("div", { className: "start-row" },
         h("button", { className: "btn-primary btn-big", onclick: () => start(error) }, "▶ Start game"),
         error));
@@ -290,15 +345,16 @@ const EG = (() => {
 
   function start(error){
     const s = settings;
-    const questions = questionsFor(s.year)
-      .filter(q => cfg.fields.every(f => f.optional || String(q[f.key] ?? "").trim()))
-      .map(q => ({ ...q }));
+    const questions = chosen(s.year, s.set).map(q => ({ ...q }));
     if (!questions.length){
-      error.textContent = "Please add at least one question with every box filled in.";
+      error.textContent = pool(s.year, s.set).some(complete)
+        ? "Please tick at least one category."
+        : "Please add at least one question with every box filled in.";
       return;
     }
     current = {
       year: s.year,
+      set: s.set,
       teams: Array.from({ length: s.teamCount }, (_, i) => ({ name: (s.names[i] ?? "").trim() || NAMES[i], color: COLORS[i] })),
       questions,
       options: { ...s.options }
@@ -320,7 +376,7 @@ const EG = (() => {
   }
 
   function init(config){
-    cfg = { minTeams: 2, maxTeams: 4, defaultTeams: 2, options: [], ...config };
+    cfg = { minTeams: 2, maxTeams: 8, defaultTeams: 2, options: [], ...config };
     settings = loadSettings();
     buildTopbar();
     showSetup();

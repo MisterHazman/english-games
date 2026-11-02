@@ -15,7 +15,15 @@
   grid-template-columns:repeat(var(--n, 3), 1fr);
   gap:clamp(12px, 2vw, 22px);
 }
-@media (max-width: 1000px){ .teams{ grid-template-columns:repeat(2, 1fr); } }
+/* 5–8 teams: two even rows of smaller cards */
+.teams.many{ grid-template-columns:repeat(var(--cols, 4), 1fr); gap:clamp(8px, 1.2vw, 14px); }
+.teams.many .team-card{ padding:clamp(8px, 1vw, 14px); }
+.teams.many .team-name{ font-size:1.25rem; margin:0; line-height:1.15; }
+.teams.many .team-status{ font-size:0.65rem; margin-bottom:0.1rem; }
+.teams.many .team-lives{ font-size:0.95rem; letter-spacing:0; margin-bottom:0.3rem; }
+.teams.many .team-actions{ gap:6px; }
+.teams.many .team-actions button{ font-size:0.95rem; padding:0.55rem 0.3rem; }
+@media (max-width: 1000px){ .teams, .teams.many{ grid-template-columns:repeat(2, 1fr); } }
 @media (max-width: 600px){ .teams{ grid-template-columns:1fr; } }
 
 .team-card{
@@ -96,7 +104,9 @@
 
 /* target-picker modal */
 .picker-options{ display:flex; flex-direction:column; gap:10px; }
-.picker-options button{ font-family:var(--font-display); font-size:1.3rem; }
+.picker-options button{ font-family:var(--font-display); font-size:1.3rem; border:2px solid var(--c, var(--board-line)); }
+.picker-options.many{ display:grid; grid-template-columns:1fr 1fr; }
+.picker-options.many button{ font-size:1.1rem; }
 </style>
 </head>
 <body>
@@ -138,11 +148,13 @@
 </div>
 
 <script src="common.js"></script>
+<script src="sets/splat.js"></script>
 <script>
 /* ============================================================
    BUILT-IN QUESTIONS (Year 4, 5, 6 — KSSR / CEFR A1–A2)
    Teachers can change these on the setup screen without
    touching this file. A new "topic" starts a new stage.
+   The word before ":" in a topic is its category (tick boxes).
    ============================================================ */
 const BANKS = {
   4: [
@@ -155,14 +167,14 @@ const BANKS = {
     { topic: "Vocabulary", question: "What meal do we eat in the morning?", answer: "Breakfast" },
     { topic: "Vocabulary", question: "Which day comes after Sunday?", answer: "Monday" },
     { topic: "Vocabulary", question: "How many legs does a spider have?", answer: "Eight" },
-    { topic: "Grammar", question: "Fill in the blank: \"She ___ (eat) rice every day.\"", answer: "eats" },
     { topic: "Grammar", question: "Which is correct: \"He like football\" or \"He likes football\"?", answer: "He likes football." },
-    { topic: "Grammar", question: "Fill in the blank: \"Look! The boys ___ (play) football now.\"", answer: "are playing" },
     { topic: "Grammar", question: "One box, two ___.", answer: "boxes" },
     { topic: "Grammar", question: "Fill in the blank: \"There ___ three cats under the table.\" (is / are)", answer: "are" },
     { topic: "Grammar", question: "Fill in the blank: \"___ you swim?\" \"Yes, I can.\"", answer: "Can" },
     { topic: "Grammar", question: "Which is correct: \"I have a apple\" or \"I have an apple\"?", answer: "I have an apple." },
-    { topic: "Grammar", question: "Fill in the blank: \"My father ___ (go) to work by car.\"", answer: "goes" },
+    { topic: "Tenses", question: "Fill in the blank: \"She ___ (eat) rice every day.\"", answer: "eats" },
+    { topic: "Tenses", question: "Fill in the blank: \"Look! The boys ___ (play) football now.\"", answer: "are playing" },
+    { topic: "Tenses", question: "Fill in the blank: \"My father ___ (go) to work by car.\"", answer: "goes" },
     { topic: "Prepositions", question: "Fill in: \"We keep ice cream ___ the fridge.\"", answer: "in" },
     { topic: "Prepositions", question: "Fill in: \"The clock is ___ the wall.\"", answer: "on" },
     { topic: "Prepositions", question: "Fill in: \"A fish lives ___ the water.\"", answer: "in" },
@@ -179,15 +191,15 @@ const BANKS = {
     { topic: "Vocabulary", question: "What do you wear on your head on a hot, sunny day?", answer: "A hat / a cap" },
     { topic: "Vocabulary", question: "What is the opposite of \"cheap\"?", answer: "Expensive" },
     { topic: "Vocabulary", question: "Which animal is called \"the king of the jungle\"?", answer: "The lion" },
-    { topic: "Grammar", question: "Change to the past tense: \"I go to school.\"", answer: "I went to school." },
-    { topic: "Grammar", question: "Fill in the blank: \"Yesterday, we ___ (play) badminton.\"", answer: "played" },
-    { topic: "Grammar", question: "Fill in the blank: \"Last night, she ___ (eat) noodles.\"", answer: "ate" },
     { topic: "Grammar", question: "Fill in the blank: \"An elephant is ___ (big) than a cat.\"", answer: "bigger" },
     { topic: "Grammar", question: "Fill in the blank: \"Ali is the ___ (tall) boy in the class.\"", answer: "tallest" },
     { topic: "Grammar", question: "Fill in the blank: \"How ___ apples do you have?\" (much / many)", answer: "many" },
-    { topic: "Grammar", question: "Fill in the blank: \"There ___ a lot of people at the park yesterday.\" (was / were)", answer: "were" },
     { topic: "Grammar", question: "You are sick. \"You ___ go to the doctor.\" (should / shouldn't)", answer: "should" },
     { topic: "Grammar", question: "Correct the sentence: \"She more tall than her brother.\"", answer: "She is taller than her brother." },
+    { topic: "Tenses", question: "Change to the past tense: \"I go to school.\"", answer: "I went to school." },
+    { topic: "Tenses", question: "Fill in the blank: \"Yesterday, we ___ (play) badminton.\"", answer: "played" },
+    { topic: "Tenses", question: "Fill in the blank: \"Last night, she ___ (eat) noodles.\"", answer: "ate" },
+    { topic: "Tenses", question: "Fill in the blank: \"There ___ a lot of people at the park yesterday.\" (was / were)", answer: "were" },
     { topic: "Prepositions", question: "Fill in: \"My birthday is ___ May.\"", answer: "in" },
     { topic: "Prepositions", question: "Fill in: \"We have English ___ Monday.\"", answer: "on" },
     { topic: "Prepositions", question: "Fill in: \"School starts ___ 7.30 in the morning.\"", answer: "at" },
@@ -203,16 +215,16 @@ const BANKS = {
     { topic: "Vocabulary", question: "Which planet do we live on?", answer: "Earth" },
     { topic: "Vocabulary", question: "What is the opposite of \"polite\"?", answer: "Rude" },
     { topic: "Vocabulary", question: "Where do you go to see old and interesting things from the past?", answer: "A museum" },
-    { topic: "Grammar", question: "Fill in the blank: \"Mum ___ (cook) when the phone rang.\"", answer: "was cooking" },
-    { topic: "Grammar", question: "Fill in the blank: \"I think it ___ rain tomorrow.\"", answer: "will" },
-    { topic: "Grammar", question: "Fill in the blank: \"Look at those dark clouds! It is ___ to rain.\"", answer: "going" },
-    { topic: "Grammar", question: "Make it a question: \"She went to Penang.\"", answer: "Did she go to Penang?" },
     { topic: "Grammar", question: "Fill in the blank: \"This is the ___ (good) day of my life!\"", answer: "best" },
     { topic: "Grammar", question: "Fill in the blank: \"A cheetah runs very ___ (quick).\"", answer: "quickly" },
     { topic: "Grammar", question: "Fill in the blank: \"Siti is the girl ___ won the race.\" (who / which)", answer: "who" },
-    { topic: "Grammar", question: "Correct the sentence: \"Yesterday I buyed a new bag.\"", answer: "Yesterday I bought a new bag." },
-    { topic: "Grammar", question: "Fill in the blank: \"When I was five, I ___ (can) ride a bicycle.\"", answer: "could" },
     { topic: "Grammar", question: "Fill in the blank: \"You ___ throw rubbish into the river. It is wrong.\" (must / mustn't)", answer: "mustn't" },
+    { topic: "Tenses", question: "Fill in the blank: \"Mum ___ (cook) when the phone rang.\"", answer: "was cooking" },
+    { topic: "Tenses", question: "Fill in the blank: \"I think it ___ rain tomorrow.\"", answer: "will" },
+    { topic: "Tenses", question: "Fill in the blank: \"Look at those dark clouds! It is ___ to rain.\"", answer: "going" },
+    { topic: "Tenses", question: "Make it a question: \"She went to Penang.\"", answer: "Did she go to Penang?" },
+    { topic: "Tenses", question: "Correct the sentence: \"Yesterday I buyed a new bag.\"", answer: "Yesterday I bought a new bag." },
+    { topic: "Tenses", question: "Fill in the blank: \"When I was five, I ___ (can) ride a bicycle.\"", answer: "could" },
     { topic: "Prepositions", question: "Fill in: \"I am good ___ drawing.\"", answer: "at" },
     { topic: "Prepositions", question: "Fill in: \"Are you afraid ___ snakes?\"", answer: "of" },
     { topic: "Prepositions", question: "Fill in: \"We went to Langkawi ___ plane.\"", answer: "by" },
@@ -358,6 +370,8 @@ function renderCurrent(){
 function renderTeams(){
   teamsContainerEl.innerHTML = "";
   teamsContainerEl.style.setProperty("--n", teams.length);
+  teamsContainerEl.style.setProperty("--cols", Math.ceil(teams.length / 2));
+  teamsContainerEl.classList.toggle("many", teams.length > 4);
 
   teams.forEach(team => {
     const isEliminated = team.status === "eliminated";
@@ -453,11 +467,15 @@ function openPicker(actingTeam){
 
   pickerTitle.textContent = `${actingTeam.name} got it right! Who gets splatted?`;
   pickerOptions.innerHTML = "";
+  pickerOptions.classList.toggle("many", targets.length > 4);
 
   targets.forEach(target => {
     const btn = document.createElement("button");
     btn.className = "btn-ghost";
-    btn.textContent = `${target.name} (${target.lives} ${target.lives === 1 ? "life" : "lives"} left)`;
+    btn.style.setProperty("--c", target.color);
+    btn.textContent = targets.length > 4
+      ? `${target.name} · ${target.lives} ❤️`
+      : `${target.name} (${target.lives} ${target.lives === 1 ? "life" : "lives"} left)`;
     btn.addEventListener("click", () => {
       closePicker();
       hitTeam(target);
@@ -520,12 +538,15 @@ EG.init({
   id: "splat",
   titleHTML: `<span class="drip">SPLAT!</span> Classroom Showdown`,
   banks: BANKS,
+  moreSets: MORE_SETS,
+  categoryOf: q => String(q.topic ?? "").split(":")[0],
   fields: [
-    { key: "topic", label: "Topic (optional)", optional: true },
+    { key: "topic", label: "Category / topic", optional: true },
     { key: "question", label: "Question", grow: 4 },
     { key: "answer", label: "Answer", grow: 2 }
   ],
   defaultTeams: 3,
+  editorHint: "Category / topic: the word before the colon is the category for the tick boxes (e.g. \"Vocabulary: Animals\"). A new topic starts a new stage.",
   howTo: "Each team has 6 lives. Correct answer: splat another team. Wrong answer: splat yourself. Last team standing — or the team with the most lives when the questions run out — wins!",
   start: startGame,
   finish: () => endGame()
